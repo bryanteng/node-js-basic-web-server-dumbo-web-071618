@@ -1,13 +1,16 @@
 "use strict";
 
-const http         = require('http');
 const finalhandler = require('finalhandler');
+const bodyParser   = require('body-parser');
+const http         = require('http');
+const urlParser    = require('url');
+const querystring  = require('querystring');
 const Router       = require('router');
-const bodyParser = require('body-parser');
+const bcrypt       = require('bcrypt');
 
-const router = new Router();
-router.use(bodyParser.json({type: 'application/*+json' }));
+const router = new Router({ mergerParams: true });
 
+let messages = [];
 let nextId = 1;
 
 class Message {
@@ -17,24 +20,59 @@ class Message {
     nextId++;
   }
 }
-let messages = [];
+
+// Use body parser to handle post data.
+router.use(bodyParser.json());
 
 router.get('/', (request, response) => {
-  // A good place to start!
-  response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  response.setHeader('Content-Type', 'text/plain; charset=utf-8');
   response.end('Hello, World!');
 });
 
+router.get('/messages', (request, response) => {
+  let url = urlParser.parse(request.url)
+  let params = querystring.parse(url.query);
+
+  let result = JSON.stringify(messages);
+
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+  response.end(result);
+});
+
+router.get('/message/:id', (request, response) => {
+  let url    = urlParser.parse(request.url)
+  let params = querystring.parse(url.query);
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+  if (!request.params.id) {
+    response.statusCode = 400;
+    response.statusMessage = "No message id provided.";
+    response.end();
+    return;
+  }
+
+  const found = messages.find((message) => message.id == request.params.id)
+
+  if (!found) {
+    response.statusCode = 404;
+    response.statusMessage = `Unable to find a message with id ${request.params.id}`;
+    response.end();
+    return;
+  }
+
+  response.end(JSON.stringify(found));
+});
+
 router.post('/message', (request, response) => {
-  // Save the message and send the message id back to the client.
-  response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  response.setHeader('Content-Type', 'application/json; charset=utf-8')
   if(!request.body.message){
     response.statusCode = 400;
     response.statusMessage = 'No message provided.';
     response.end();
     return;
     }
-  let newMsg = request.body.message
+  let newMsg = new Message(request.body.message)
   messages.push(newMsg)
   
   response.end(JSON.stringify(newMsg.id))
